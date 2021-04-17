@@ -1,4 +1,4 @@
-package u04lab.code
+package u05lab.code
 
 import scala.annotation.tailrec
 import scala.language.postfixOps // silence warnings
@@ -39,8 +39,11 @@ sealed trait List[A] {
 
   def takeRight(n: Int): List[A]
 
+  def collect[B](partialFunction: PartialFunction[A,B]): List[B]
+
   // right-associative construction: 10 :: 20 :: 30 :: Nil()
   def ::(head: A): List[A] = Cons(head,this)
+
 }
 
 // defining concrete implementations based on the same template
@@ -115,19 +118,64 @@ trait ListImplementation[A] extends List[A] {
     case Nil() => Nil()
   }
 
-  override def zipRight: List[(A,Int)] = ??? // questions: what is the type of keyword ???
+  override def zipRight: List[(A,Int)] = {
+    def _zipRight(l:List[A], k: Int = 0, res: List[(A,Int)] = List.nil): List[(A,Int)] = l match {
+      case h :: t => _zipRight(t, k+1, (h,k) :: res)
+      case _ => res
+    }
+    _zipRight(this).reverse()
 
-  override def partition(pred: A => Boolean): (List[A],List[A]) = ???
+    /*
+    var k = 0
+    this.map(e => {
+      k+=1
+      (e,k)
+    })*/
+  }
+  // questions: what is the type of keyword ???
 
-  override def span(pred: A => Boolean): (List[A],List[A]) = ???
+  override def partition(pred: A => Boolean): (List[A],List[A]) = {
+    ( this filter pred, this filter (pred(_)==false))
+  }
+
+  override def span(pred: A => Boolean): (List[A],List[A]) = {
+    var l1: List[A] = Nil()
+    var l2: List[A] = Nil()
+    var found: Boolean = false
+    this foreach( a=>
+      (pred(a), found) match {
+        case (true, false) => l1 = a :: l1
+        case (false, false) => l2 = a :: l2 ; found = true
+        case (_, true) => l2 = a :: l2
+      }
+    )
+    (l1 reverse, l2 reverse)
+  }
 
   /**
     *
     * @throws UnsupportedOperationException if the list is empty
     */
-  override def reduce(op: (A,A)=>A): A = ???
+  override def reduce(op: (A,A)=>A): A = {
+    this match {
+      case h :: Nil() => h
+      case h :: h2 :: t => op(h,h2) :: t reduce op
+      case _ => throw new UnsupportedOperationException("Empty list")
+    }
+  }
 
-  override def takeRight(n: Int): List[A] = ???
+  override def takeRight(n: Int): List[A] = {
+    (this.reverse zipRight) filter (a => a._2 < n) map (a=> a._1) reverse
+  }
+
+  override def collect[B](partialFunction: PartialFunction[A,B]): List[B] = {
+    var list: List[B] = Nil()
+    this.reverse() foreach(a =>
+      if (partialFunction.isDefinedAt(a)){
+        list = partialFunction(a) :: list
+      })
+    list
+  }
 }
 
 // Factories
@@ -154,7 +202,7 @@ object ListsTest extends App {
   val l = 10 :: 20 :: 30 :: 40 :: Nil() // same as above
   println(l.head) // 10
   println(l.tail) // 20,30,40
-  println(l append l) // 10,20,30,40,10,20,30,40
+  println(l.append(l)) // 10,20,30,40,10,20,30,40
   println(l append l toSeq) // as a list: 10,20,30,40,10,20,30,40
   println(l get 2) // 30
   println(of("a",10)) // a,a,a,..,a
@@ -177,11 +225,11 @@ object ListsTest extends App {
 
   // Ex. 4: reduce
   println(l.reduce(_+_)) // 100
-  try { List[Int]().reduce(_+_); assert(false) } catch { case _:UnsupportedOperationException => }
+  try { List[Int]().reduce(_+_); assert(false) } catch { case e:UnsupportedOperationException => println(e.getMessage) }
 
   // Ex. 5: takeRight
   println(l.takeRight(2)) // Cons(30,Cons(40,Nil()))
 
   // Ex. 6: collect
-  // println(l.collect { case x if x<15 || x>35 => x-1 }) // Cons(9, Cons(39, Nil()))
+  println(l.collect { case x if x<15 || x>35 => x-1 }) // Cons(9, Cons(39, Nil()))
 }
