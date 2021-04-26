@@ -134,22 +134,14 @@ trait ListImplementation[A] extends List[A] {
   }
   // questions: what is the type of keyword ???
 
-  override def partition(pred: A => Boolean): (List[A],List[A]) = {
-    ( this filter pred, this filter (pred(_)==false))
-  }
+  override def partition(pred: A => Boolean): (List[A],List[A]) = (filter(pred),filter(!pred(_)))
 
   override def span(pred: A => Boolean): (List[A],List[A]) = {
-    var l1: List[A] = Nil()
-    var l2: List[A] = Nil()
-    var found: Boolean = false
-    this foreach( a=>
-      (pred(a), found) match {
-        case (true, false) => l1 = a :: l1
-        case (false, false) => l2 = a :: l2 ; found = true
-        case (_, true) => l2 = a :: l2
-      }
-    )
-    (l1 reverse, l2 reverse)
+    def _span(fir: List[A], sec: List[A])(pred: A => Boolean): (List[A],List[A]) = (fir, sec) match {
+      case (_, h::t) => if (pred(h)) _span(h::fir,t)(pred) else (fir,sec)
+      case _ => (fir,sec)
+    }
+    _span(Nil(),this)(pred)
   }
 
   /**
@@ -158,24 +150,20 @@ trait ListImplementation[A] extends List[A] {
     */
   override def reduce(op: (A,A)=>A): A = {
     this match {
+      case h :: t => t.foldLeft(h)(op)
+      case _ => throw new UnsupportedOperationException("Empty list")
+    }
+    /*this match {
       case h :: Nil() => h
       case h :: h2 :: t => op(h,h2) :: t reduce op
       case _ => throw new UnsupportedOperationException("Empty list")
-    }
+    }*/
   }
 
-  override def takeRight(n: Int): List[A] = {
-    (this.reverse zipRight) filter (a => a._2 < n) map (a=> a._1) reverse
-  }
+  override def takeRight(n: Int): List[A] = (this.reverse zipRight) filter (a => a._2 < n) map (a=> a._1) reverse
 
-  override def collect[B](partialFunction: PartialFunction[A,B]): List[B] = {
-    var list: List[B] = Nil()
-    this.reverse() foreach(a =>
-      if (partialFunction.isDefinedAt(a)){
-        list = partialFunction(a) :: list
-      })
-    list
-  }
+  override def collect[B](partialFunction: PartialFunction[A,B]): List[B] = filter(partialFunction.isDefinedAt(_)) map partialFunction
+
 }
 
 // Factories
@@ -213,6 +201,7 @@ object ListsTest extends App {
   println(scala.collection.immutable.List(10,20,30,40).partition(_>15))
   println(scala.collection.immutable.List(10,20,30,40).span(_>15))
 
+  println("-----TEST-----")
   // Ex. 1: zipRight
   println(l.zipRight.toSeq) // List((10,0), (20,1), (30,2), (40,3))
 
