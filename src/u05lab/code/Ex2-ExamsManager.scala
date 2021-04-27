@@ -16,14 +16,9 @@ object ExamsManagerTest extends App {
 
     def cumLaude(): Boolean
 
-    override def toString: String = {
-      if (this.getKind.toString == "SUCCEEDED" && cumLaude()) {
-        this.getKind.toString + "(" + this.getEvaluation.get + "L)"
-      } else if (this.getKind.toString == "SUCCEEDED") {
-        this.getKind.toString + "(" + this.getEvaluation.get + ")"
-      } else {
-        this.getKind.toString
-      }
+    override def toString: String = getKind.toString match {
+      case "SUCCEEDED" => "SUCCEEDED(" + getEvaluation.get + (if (cumLaude()) "L)" else ")")
+      case _ => getKind.toString
     }
 
     object Kind {
@@ -35,6 +30,28 @@ object ExamsManagerTest extends App {
     }
   }
 
+  case class SuccExamResult(value: Int, laude: Boolean) extends ExamResult{
+    override def getKind: Kind = Kind.SUCCEEDED()
+
+    override def getEvaluation: Option[Int] = Option(value)
+
+    override def cumLaude(): Boolean = laude
+  }
+  case class FailExamResult() extends ExamResult{
+    override def getKind: Kind = Kind.FAILED()
+
+    override def getEvaluation: Option[Int] = Option.empty
+
+    override def cumLaude(): Boolean = false
+  }
+
+  case class RetirExamResult() extends ExamResult{
+    override def getKind: Kind = Kind.RETIRED()
+
+    override def getEvaluation: Option[Int] = Option.empty
+
+    override def cumLaude(): Boolean = false
+  }
 
   sealed trait ExamResultFactory {
     def succeeded(i: Int): ExamResult
@@ -68,38 +85,11 @@ object ExamsManagerTest extends App {
     case class ExamResultFactoryImpl() extends ExamResultFactory {
       override def succeeded(i: Int): ExamResult = {
         require(i <= 30 && i >= 18)
-        new ExamResult {
-          override def getKind: Kind = Kind.SUCCEEDED()
-
-          override def getEvaluation: Option[Int] = Option.apply(i)
-
-          override def cumLaude(): Boolean = false
-        }
+        SuccExamResult(i,false)
       }
-
-      override def succeededCumLaude(): ExamResult = new ExamResult {
-        override def getKind: Kind = Kind.SUCCEEDED()
-
-        override def getEvaluation: Option[Int] = Option.apply(30)
-
-        override def cumLaude(): Boolean = true
-      }
-
-      override def retired(): ExamResult = new ExamResult {
-        override def getKind: Kind = Kind.RETIRED()
-
-        override def getEvaluation: Option[Int] = Option.empty
-
-        override def cumLaude(): Boolean = false
-      }
-
-      override def failed(): ExamResult = new ExamResult {
-        override def getKind: Kind = Kind.FAILED()
-
-        override def getEvaluation: Option[Int] = Option.empty
-
-        override def cumLaude(): Boolean = false
-      }
+      override def succeededCumLaude(): ExamResult = SuccExamResult(30,true)
+      override def retired(): ExamResult = RetirExamResult()
+      override def failed(): ExamResult = FailExamResult()
     }
   }
 
@@ -122,7 +112,9 @@ object ExamsManagerTest extends App {
         calls(call).filter(a => a._2.getKind.toString == "SUCCEEDED") map (a => (a._1, a._2.getEvaluation.get))
       }
 
-      override def getResultsMapFromStudent(student: String): Map[String, String] = {
+      override def getResultsMapFromStudent(student: String): Map[String, String] = calls.filter(_._2.contains(student)).map(a=>a._1->a._2(student).toString)
+
+      /*{
         var res: Map[String, String] = Map.empty
         calls foreach (c => {
           if (c._2.contains(student)) {
@@ -130,9 +122,10 @@ object ExamsManagerTest extends App {
           }
         })
         res
-      }
+      }*/
 
-      override def getBestResultFromStudent(student: String): Option[Int] = {
+      override def getBestResultFromStudent(student: String): Option[Int] = calls.filter(_._2.contains(student)).map(_._2(student).getEvaluation).max
+      /*{
         var res: Set[Option[Int]] = Set.empty
         calls foreach (c => {
           if (c._2.contains(student)) {
@@ -153,7 +146,7 @@ object ExamsManagerTest extends App {
           })
           option
         }
-      }
+      }*/
     }
   }
 }
